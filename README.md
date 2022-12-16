@@ -1,1 +1,1 @@
-# Detect_cornor_label_product
+# Detect_corner_label_product
