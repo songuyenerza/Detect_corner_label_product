@@ -145,6 +145,8 @@ def caculator_score_u2net(image, box_max, predict_mask_ori):
 
 if __name__ == '__main__':
 
+    #link_drive_models: "https://drive.google.com/drive/folders/10pAkqr-ZErb3KTtJtSt7dAoRkDmv_afv"
+
     #load_model_yolov5
     weight = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/detect_point/cp/best_yolov5_151222_V1.pt" #weights_yolov5
     model, device = load_model(weights=weight)
