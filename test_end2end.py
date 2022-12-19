@@ -10,8 +10,7 @@ import cv2
 from PIL import Image, ImageOps
 import timeit
 
-
-def sorted_box(box_list):
+def sorted_box_(box_list):
 
     #box_1 = topleft, box3 = topright, box4 = b_right, box2 = b_left
     box_list = sorted(box_list, key = lambda box_list: box_list[0])
@@ -30,7 +29,7 @@ def sorted_box(box_list):
 
 def check_box(box_list, box_true):
     #clear_box: box= false==> convert to rectangle
-    box_list = sorted_box(box_list)
+    box_list = sorted_box_(box_list)
 
     [box1, box3, box4, box2] = box_list
 
@@ -85,7 +84,7 @@ def fourPointTransform(image, rect):
     # return the warped image
     return  warped
 
-def sorted_box(box_list):
+def sorted_box_(box_list):
 
     #box_1 = topleft, box3 = topright, box4 = b_right, box2 = b_left
     box_list = sorted(box_list, key = lambda box_list: box_list[0])
@@ -104,7 +103,7 @@ def sorted_box(box_list):
 
 def check_box(box_list, box_true):
     #clear_box: box= false==> convert to rectangle
-    box_list = sorted_box(box_list)
+    box_list = sorted_box_(box_list)
 
     [box1, box3, box4, box2] = box_list
 
@@ -143,82 +142,28 @@ def caculator_score_u2net(image, box_max, predict_mask_ori):
     score_list_u2net = np.array(score_list_u2net)
     return np.mean(score_list_u2net)
 
-if __name__ == '__main__':
+def predict_end2end(img_path, model_yolo, device, net_u2net, imgsz_yolo, conf_thres_yolo,  THRESHOLD, RESCALE):
+    img_ori = cv2.imread(img_path)
 
-    #link_drive_models: "https://drive.google.com/drive/folders/10pAkqr-ZErb3KTtJtSt7dAoRkDmv_afv"
-
-    #load_model_yolov5
-    weight = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/detect_point/cp/best_yolov5_151222_V1.pt" #weights_yolov5
-    model, device = load_model(weights=weight)
-    print("GPU Memory_____: %s" % getMemoryUsage())
-
-    #load_model_u2net
-    net_u2net = U2NETP(3,1)
-    THRESHOLD = 0.2
-    RESCALE = 255
-    THRESHOLD_score_u2net = 0.92
-    model_dir = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/detect_point/cp/u2net_p_1612_bess.pth"
-    if torch.cuda.is_available():
-        net_u2net.load_state_dict(torch.load(model_dir))
-        net_u2net.cuda()
-    else:        
-        net_u2net.load_state_dict(torch.load(model_dir, map_location=torch.device('cpu')))
-    net_u2net.eval()
-
-    #foler_save_output
-    folder_output = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/TV_L-20221208T075619Z-001/check_croped_141222_v3/"
-
-    #load_path_img_input
-    data_folder = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/panasonic-20221209T082601Z-001/panasonic/"
-    with open( data_folder +  'paths.txt','r') as f:
-        IMAGE_PATH_DB = [line.strip('\n') for line in f.readlines()]
-
-    err = 0
-    total = 0
-    for path in IMAGE_PATH_DB:
-        total += 1
-        img_ori = cv2.imread(data_folder + path)
-
-        center = img_ori.shape
-        h0, w0 = center[0], center[1]
-        start = timeit.default_timer()
-        box_img, box_image_no = detect_box(model, device, img_ori,imgsz=[640,640],conf_thres=0.3, iou_thres = 0.3)
-        # print("box_image_no", box_image_no)
-        img_output = folder_output + path
-
-        if len(box_image_no) == 4:
-            box_crop = []
-            for box in box_image_no:
-                b = [box[0], box[1]]
-                box_crop.append(b)
-            # box_crop = check_box(box_crop, None)
-            box_crop = sorted_box(box_crop)
-            if box_crop != None and 0.66 <box_crop[0][1] / box_crop[1][1] < 1.5 and 0.7 < box_crop[0][0] / box_crop[3][0] < 1.5 and 0.7 < box_crop[1][0] / box_crop[2][0] < 1.5 and 0.7 < box_crop[1][0] / box_crop[2][0] < 1.5 and 0.7 < box_crop[2][1] / box_crop[3][1] < 1.4 : 
-                box_crop = np.array(box_crop)
-                box_crop = np.int0(box_crop) 
-                box_output = box_crop
-                # img_final = cv2.drawContours(img_ori.copy(),[box_crop],0,(0,0,256),2)
-                # img_final = fourPointTransform(img_ori.copy(), box_crop )
-            else:
-                img_final = img_ori.copy()
-                image = io.imread(data_folder + path)
-                image_pil = Image.fromarray(image)
-                w, h = image.shape[1],image.shape[0]
-                # print("shape", image.shape)
-                mask_unet, predict_mask_ori = predict(image, net_u2net, THRESHOLD, RESCALE )
-                box_mers, results, box_max = getBoxPanels(mask_unet)
-                if len(box_mers) == 1:
-                    box_max = sorted_box(box_max)
-                    box_max = np.int0(box_max)
-                    score_u2net = caculator_score_u2net(image, box_max, predict_mask_ori)
-                    if score_u2net > THRESHOLD_score_u2net:
-                        box_output = box_max
-                    # img_final = fourPointTransform(img_ori.copy(), box_max )
-                    # img_final = cv2.drawContours(img_final,[box_max],0,(0,255,256),2)
-                    else:
-                        box_output = []
-                else:
-                    box_output = []
+    center = img_ori.shape
+    h0, w0 = center[0], center[1]
+    box_img, box_image_no = detect_box(model_yolo, device, img_ori,imgsz=imgsz_yolo,conf_thres = conf_thres_yolo, iou_thres = 0.3)
+    # print("box_image_no", box_image_no)
+    img_output = folder_output + path
+    print("path", path)
+    if len(box_image_no) == 4:
+        box_crop = []
+        for box in box_image_no:
+            b = [box[0], box[1]]
+            box_crop.append(b)
+        # box_crop = check_box(box_crop, None)
+        box_crop = sorted_box_(box_crop)
+        if box_crop != None and 0.66 <box_crop[0][1] / box_crop[1][1] < 1.5 and 0.7 < box_crop[0][0] / box_crop[3][0] < 1.5 and 0.7 < box_crop[1][0] / box_crop[2][0] < 1.5 and 0.7 < box_crop[1][0] / box_crop[2][0] < 1.5 and 0.7 < box_crop[2][1] / box_crop[3][1] < 1.4 : 
+            box_crop = np.array(box_crop)
+            box_crop = np.int0(box_crop) 
+            box_output = box_crop
+            # img_final = cv2.drawContours(img_ori.copy(),[box_crop],0,(0,0,256),2)
+            # img_final = fourPointTransform(img_ori.copy(), box_crop )
         else:
             img_final = img_ori.copy()
             image = io.imread(data_folder + path)
@@ -227,26 +172,126 @@ if __name__ == '__main__':
             # print("shape", image.shape)
             mask_unet, predict_mask_ori = predict(image, net_u2net, THRESHOLD, RESCALE )
             box_mers, results, box_max = getBoxPanels(mask_unet)
-            if len(box_mers) ==1:
-                box_max = sorted_box(box_max)
+            if len(box_mers) == 1 and len(box_max) != 0:
+                box_max = sorted_box_(box_max)
                 box_max = np.int0(box_max)
-                score_u2net = caculator_score_u2net(image, box_max, predict_mask_ori)\
-
+                score_u2net = caculator_score_u2net(image, box_max, predict_mask_ori)
                 if score_u2net > THRESHOLD_score_u2net:
                     box_output = box_max
+                # img_final = fourPointTransform(img_ori.copy(), box_max )
+                # img_final = cv2.drawContours(img_final,[box_max],0,(0,255,256),2)
                 else:
                     box_output = []
-                # img_final = cv2.drawContours(img_final,[box_max],0,(0,255,256),2)
-                # img_final = fourPointTransform(img_ori.copy(), box_max)
             else:
                 box_output = []
+    else:
+        img_final = img_ori.copy()
+        image = io.imread(data_folder + path)
+        image_pil = Image.fromarray(image)
+        w, h = image.shape[1],image.shape[0]
+        # print("shape", image.shape)
+        mask_unet, predict_mask_ori = predict(image, net_u2net, THRESHOLD, RESCALE )
+        box_mers, results, box_max = getBoxPanels(mask_unet)
+        if len(box_mers) ==1 and len(box_max) != 0:
+            box_max = sorted_box_(box_max)
+            box_max = np.int0(box_max)
+            score_u2net = caculator_score_u2net(image, box_max, predict_mask_ori)\
+
+            if score_u2net > THRESHOLD_score_u2net:
+                box_output = box_max
+            else:
+                box_output = []
+            # img_final = cv2.drawContours(img_final,[box_max],0,(0,255,256),2)
+            # img_final = fourPointTransform(img_ori.copy(), box_max)
+        else:
+            box_output = []
+    return box_output
+
+
+if __name__ == '__main__':
+
+    #link_drive_models: "https://drive.google.com/drive/folders/10pAkqr-ZErb3KTtJtSt7dAoRkDmv_afv"
+
+    #load_model_yolov5
+    weight = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/detect_point/cp/best_yolov5_151222_V1.pt" #weights_yolov5: https://drive.google.com/file/d/1ueNmHsYbt7pKbTlVoN3OUETNUkBx8fgu/view?usp=share_link
+    model_yolo, device = load_model(weights=weight)
+    print("GPU Memory_____: %s" % getMemoryUsage())
+
+    #load_model_u2net
+    net_u2net = U2NETP(3,1)
+    THRESHOLD = 0.1
+    RESCALE = 255
+    THRESHOLD_score_u2net = 0.91
+    model_dir = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/detect_point/cp/u2net_p_1612_bess.pth"
+    #link: https://drive.google.com/file/d/1LMN9mtQhvBLK4EPABi2krVBTPd7D3c-8/view?usp=share_link
+    if torch.cuda.is_available():
+        net_u2net.load_state_dict(torch.load(model_dir))
+        net_u2net.cuda()
+    else:        
+        net_u2net.load_state_dict(torch.load(model_dir, map_location=torch.device('cpu')))
+    net_u2net.eval()
+
+    #foler_save_output
+    folder_output = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/TV_L-20221208T075619Z-001/check_croped_161222_v1/"
+    #folder_NG_output
+    folder_output_NG = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/TV_L-20221208T075619Z-001/check_croped_161222_v1/NG/"
+    #load_path_img_input
+    data_folder = "/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/panasonic-20221209T082601Z-001/panasonic/"
+    with open( data_folder +  'paths.txt','r') as f:
+        IMAGE_PATH_DB = [line.strip('\n') for line in f.readlines()]
+
+    list_img_false = []
+    for path in os.listdir("/media/anlab/0e731fe3-5959-4d40-8958-e9f6296b38cb/home/anlab/songuyen/label_aLong/panasonic-20221209T082601Z-001/panasonic/False/"):
+        list_img_false.append(path)
+
+    err = 0
+    total = 0
+    TN = 0
+    FN = 0
+    FP = 0
+    TP = 0
+    start_all = timeit.default_timer()
+
+    for path in IMAGE_PATH_DB:
+        total += 1
+        start = timeit.default_timer()
+        img_path = data_folder + path
+        img_ori = cv2.imread(img_path)
+
+        box_output = predict_end2end(img_path = img_path, model_yolo= model_yolo, net_u2net= net_u2net, device= device, imgsz_yolo= [640,640], conf_thres_yolo = 0.3, THRESHOLD= THRESHOLD, RESCALE = 255  )
+        
         stop = timeit.default_timer()
         print('Time: ', stop - start)  
         # print(box_output, "boxoutput")
         if len(box_output) == 4:
-            img_final = fourPointTransform(img_ori.copy(), box_output )
-            cv2.imwrite(img_output, img_final)
+            # img_final = fourPointTransform(img_ori.copy(), box_output )
+            img_final = cv2.drawContours(img_ori.copy(),[box_output],0,(0,255,256),2)
+
+            # cv2.imwrite(img_output, img_final)
+
+            if path in list_img_false:
+                FP += 1
+                # cv2.imwrite(folder_output + 'FP/' + path, img_final)
+            else:
+                TP += 1
+                # cv2.imwrite(folder_output + 'TP/' + path, img_final)
+
         else:
+            img_final = img_ori.copy()
             err+=1
+            # cv2.imwrite(folder_output_NG + path, img_final)
+            if path in list_img_false:
+                TN +=1
+                # cv2.imwrite(folder_output + 'TN/' + path, img_final)
+
+            else:
+                # cv2.imwrite(folder_output + 'FN/' + path, img_final)
+
+                FN += 1 
     #err = number image no four point, total = total image
+    print("time mean per image:" ,(timeit.default_timer() - start_all)/total)
     print(err, total, err/total)
+    print("list_img_false:", len(list_img_false) ,"TN:", TN, "FN:", FN)
+    print("list_img_true:", total - len(list_img_false) ,"TP:", TP, "FP:", FP)
+    print("presision:", TN /(TN + FN))
+    print("recall:", TN/(TN + FP))

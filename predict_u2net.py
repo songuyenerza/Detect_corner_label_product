@@ -69,11 +69,11 @@ def predict(image, net, THRESHOLD, RESCALE ):
     # kernel = np.ones((7,7),np.uint8)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
 
-    mask = cv2.erode(predict_np,kernel,iterations = 5)
+    mask = cv2.erode(predict_np,kernel,iterations = 4)
     mask = cv2.dilate(mask,kernel,iterations = 1)
     mask = cv2.dilate(mask,kernel,iterations = 1)
     mask = cv2.dilate(mask,kernel,iterations = 1)
-    predict_np = cv2.dilate(mask,kernel,iterations = 2)
+    predict_np = cv2.dilate(mask,kernel,iterations = 1)
 
 
     alpha = Image.fromarray(predict_np*255)
@@ -112,7 +112,7 @@ def mer_box(boxs):
 #     boxes = np.min(a[0]), np.min(a[1]), np.max(a[0]), np.max(a[1])
 #     return boxes
 
-def sorted_box(box_list):
+def sorted_box(box_list, w0, h0):
 
     #box_1 = topleft, box3 = topright, box4 = b_right, box2 = b_left
     box_list = sorted(box_list, key = lambda box_list: box_list[0])
@@ -126,44 +126,48 @@ def sorted_box(box_list):
     box_34 = sorted(box_34, key = lambda box_34: box_34[1])
     box3 = box_34[0]
     box4 = box_34[1]
+    # print("check====================", [box1, box3, box4, box2], w0, h0)
 
-    return [box1, box3, box4, box2]
+    if box1[0]< 3 or box1[1] < 3 or box2[0] < 3 or w0 - box3[0] < 3 or w0 - box4[0] < 3 or box2[1] < 3 or h0 - box4[1] < 3 or h0 - box2[1] < 3:
+        return [] 
+    else:
+        return [box1, box3, box4, box2]
 
-def check_box(box_list, box_true):
-    #clear_box: box= false==> convert to rectangle
-    box_list = sorted_box(box_list)
+# def check_box(box_list, box_true):
+#     #clear_box: box= false==> convert to rectangle
+#     box_list = sorted_box(box_list)
 
-    [box1, box3, box4, box2] = box_list
+#     [box1, box3, box4, box2] = box_list
 
-    #angle_line1(top):
-    if box3[0] - box1[0] != 0:
-        goc_line1 = (box3[1] - box1[1])/(box3[0] - box1[0])
-    else:
-        goc_line1 = 0
-    #angle_line2(Buton)
-    if box4[0] - box2[0] != 0:
-        goc_line2 = (box4[1] - box2[1])/(box4[0] - box2[0])
-    else:
-        goc_line2 = 0
-    #line_3(right):
-    if box4[0] - box3[0] != 0:
-        goc_line3 = (box4[1] - box3[1])/(box4[0] - box3[0])
-    else:
-        goc_line3 = 0
-    #line4(left):
-    if box2[0] - box1[0] != 0:
-        goc_line4 = (box2[1] - box1[1])/(box2[0] - box1[0])
-    else:
-        goc_line4 = 0
+#     #angle_line1(top):
+#     if box3[0] - box1[0] != 0:
+#         goc_line1 = (box3[1] - box1[1])/(box3[0] - box1[0])
+#     else:
+#         goc_line1 = 0
+#     #angle_line2(Buton)
+#     if box4[0] - box2[0] != 0:
+#         goc_line2 = (box4[1] - box2[1])/(box4[0] - box2[0])
+#     else:
+#         goc_line2 = 0
+#     #line_3(right):
+#     if box4[0] - box3[0] != 0:
+#         goc_line3 = (box4[1] - box3[1])/(box4[0] - box3[0])
+#     else:
+#         goc_line3 = 0
+#     #line4(left):
+#     if box2[0] - box1[0] != 0:
+#         goc_line4 = (box2[1] - box1[1])/(box2[0] - box1[0])
+#     else:
+#         goc_line4 = 0
 
-    if abs(goc_line1 - goc_line2) >0.5 or abs(goc_line3 - goc_line4)> 0.5:
-        return box_true
-    else:
-        return box_list
+#     if abs(goc_line1 - goc_line2) >0.5 or abs(goc_line3 - goc_line4)> 0.5:
+#         return box_true
+#     else:
+#         return box_list
 
 
 def getBoxPanels(mask):
-    w, h = mask.shape
+    h0, w0 = mask.shape
     dilation = Image.fromarray(mask)
     dilation = ImageOps.grayscale(dilation)
     dilation = np.array(dilation)
@@ -178,7 +182,7 @@ def getBoxPanels(mask):
         # print('approx', approx)
         approx_list.append(approx)
         area = cv2.contourArea(c)
-        # if area < 0.05*h*w :
+        # if area < 0.05*h0*w0 :
         #     continue
         rect = cv2.minAreaRect(c)
         x, y, w, h = cv2.boundingRect(c)
@@ -191,7 +195,6 @@ def getBoxPanels(mask):
             # cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
     # exit()	
     if len(area_list) > 0:
-
         index = np.argmax(area_list)
         boxes_max = boxes[index]
         if len(approx_list[index]) ==4:
@@ -199,20 +202,19 @@ def getBoxPanels(mask):
             box_max = [box_max[0][0], box_max[1][0], box_max[2][0], box_max[3][0]]
 
             # box_max = check_box(box_max, boxes_max)
-            box_max = sorted_box(box_max)
+            box_max = sorted_box(box_max, w0, h0)
             box_max = np.array(box_max)
             box_max = np.int0(box_max)
 
         else:
             box_max = boxes_max
-            box_max = sorted_box(box_max)
+            box_max = sorted_box(box_max,  w0, h0)
             box_max = np.array(box_max)
             box_max = np.int0(box_max)
     else:
         box_max = []
 
     return boxes, results, box_max
-
 
 if __name__ == "__main__":
     net = U2NETP(3,1)
